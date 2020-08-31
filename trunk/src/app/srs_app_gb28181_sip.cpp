@@ -919,7 +919,7 @@ srs_error_t SrsGb28181SipService::fetch_or_create_sip_session(SrsSipRequest *req
     if ((sess = fetch(req->sip_auth_id)) != NULL) {
         *sip_session = sess;
         return err;
-    }
+    }
     
     sess = new SrsGb28181SipSession(this, req);;
     if ((err = sess->serve()) != srs_success) {
