@@ -50,7 +50,6 @@ using namespace std;
 #include <srs_app_rtsp.hpp>
 #include <srs_app_statistic.hpp>
 #include <srs_app_caster_flv.hpp>
-#include <srs_core_mem_watch.hpp>
 #include <srs_kernel_consts.hpp>
 #include <srs_app_coworkers.hpp>
 #include <srs_app_gb28181.hpp>
@@ -745,10 +744,6 @@ void SrsServer::dispose()
     _srs_sources->dispose();
     
     // @remark don't dispose all connections, for too slow.
-    
-#ifdef SRS_MEM_WATCH
-    srs_memory_report();
-#endif
 }
 
 void SrsServer::gracefully_dispose()
@@ -789,10 +784,6 @@ void SrsServer::gracefully_dispose()
     // dispose the source for hls and dvr.
     _srs_sources->dispose();
     srs_trace("source disposed");
-
-#ifdef SRS_MEM_WATCH
-    srs_memory_report();
-#endif
 
     srs_usleep(_srs_config->get_grace_final_wait());
     srs_trace("final wait for %dms", srsu2msi(_srs_config->get_grace_final_wait()));
@@ -1169,10 +1160,6 @@ void SrsServer::on_signal(int signo)
 #ifdef SRS_GPERF_MC
         srs_trace("gmc is on, main cycle will terminate normally, signo=%d", signo);
         signal_gmc_stop = true;
-#else
-        #ifdef SRS_MEM_WATCH
-        srs_memory_report();
-        #endif
 #endif
     }
 
@@ -1818,5 +1805,74 @@ void SrsServer::on_unpublish(SrsSource* s, SrsRequest* r)
     
     SrsCoWorkers* coworkers = SrsCoWorkers::instance();
     coworkers->on_unpublish(s, r);
+}
+
+SrsServerAdapter::SrsServerAdapter()
+{
+    srs = new SrsServer();
+}
+
+SrsServerAdapter::~SrsServerAdapter()
+{
+    srs_freep(srs);
+}
+
+srs_error_t SrsServerAdapter::initialize()
+{
+    srs_error_t err = srs_success;
+    return err;
+}
+
+srs_error_t SrsServerAdapter::run()
+{
+    srs_error_t err = srs_success;
+
+    // Initialize the whole system, set hooks to handle server level events.
+    if ((err = srs->initialize(NULL)) != srs_success) {
+        return srs_error_wrap(err, "server initialize");
+    }
+
+    if ((err = srs->initialize_st()) != srs_success) {
+        return srs_error_wrap(err, "initialize st");
+    }
+
+    if ((err = srs->acquire_pid_file()) != srs_success) {
+        return srs_error_wrap(err, "acquire pid file");
+    }
+
+    if ((err = srs->initialize_signal()) != srs_success) {
+        return srs_error_wrap(err, "initialize signal");
+    }
+
+    if ((err = srs->listen()) != srs_success) {
+        return srs_error_wrap(err, "listen");
+    }
+
+    if ((err = srs->register_signal()) != srs_success) {
+        return srs_error_wrap(err, "register signal");
+    }
+
+    if ((err = srs->http_handle()) != srs_success) {
+        return srs_error_wrap(err, "http handle");
+    }
+
+    if ((err = srs->ingest()) != srs_success) {
+        return srs_error_wrap(err, "ingest");
+    }
+
+    if ((err = srs->start()) != srs_success) {
+        return srs_error_wrap(err, "start");
+    }
+
+    return err;
+}
+
+void SrsServerAdapter::stop()
+{
+}
+
+SrsServer* SrsServerAdapter::instance()
+{
+    return srs;
 }
 

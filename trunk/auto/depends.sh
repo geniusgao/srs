@@ -269,6 +269,15 @@ function OSX_prepare()
         echo "Please install pkg-config"; exit -1;
     fi
 
+    if [[ $SRS_GB28181 == YES ]]; then
+        if [[ ! -f /usr/local/opt/libiconv/lib/libiconv.a ]]; then
+            echo "install libiconv"
+            echo "brew install libiconv"
+            brew install libiconv; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
+            echo "install libiconv success"
+        fi
+    fi
+
     echo "OSX install tools success"
     return 0
 }
@@ -346,6 +355,10 @@ if [[ $SRS_SENDMMSG == YES ]]; then
 else
     echo "Build ST without UDP sendmmsg support."
     _ST_EXTRA_CFLAGS="$_ST_EXTRA_CFLAGS -UMD_HAVE_SENDMMSG -U_GNU_SOURCE"
+fi
+# Whether enable debug stats.
+if [[ $SRS_DEBUG_STATS == YES ]]; then
+    _ST_EXTRA_CFLAGS="$_ST_EXTRA_CFLAGS -DDEBUG_STATS"
 fi
 # Always alloc on heap, @see https://github.com/ossrs/srs/issues/509#issuecomment-719931676
 _ST_EXTRA_CFLAGS="$_ST_EXTRA_CFLAGS -DMALLOC_STACK"
